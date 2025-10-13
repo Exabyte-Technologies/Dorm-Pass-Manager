@@ -179,6 +179,7 @@ async function getUserLocation() {
         
     } catch (error) {
         failBEEP.play();
+        removeLoader()
         window.errorLog.push(error)
         dlog('Error:', error);
         createAlertPopup(5000, null, 'Error', 'Error while sending data to server')
@@ -221,6 +222,7 @@ async function getLocationId(type) {
         
     } catch (error) {
         failBEEP.play();
+        removeLoader()
         window.errorLog.push(error)
         dlog('Error:', error);
         createAlertPopup(5000, null, 'Error', 'Error while sending data to server')
@@ -280,6 +282,7 @@ async function getStudentIdFromCard(cardid) {
         }
     } catch (error) {
         failBEEP.play();
+        removeLoader()
         window.errorLog.push(error);
         createAlertPopup(5000, null, 'Error', 'Failed to fetch student ID from card');
         return null;
@@ -308,6 +311,7 @@ async function getStudentImage(studentid) {
         return responseJson.studentBase64Image;
     } catch (error) {
         failBEEP.play();
+        removeLoader()
         dlog('Error:', error);
         createAlertPopup(5000, null, 'Error', 'Error while fetching student image');
         return 'error';
@@ -444,6 +448,7 @@ async function approvePassByCard(cardid) {
         }
     } catch (error) {
         failBEEP.play();
+        removeLoader()
         window.errorLog.push(error)
         createAlertPopup(5000, null, 'Error', 'Error while approving pass');
     }
@@ -651,6 +656,7 @@ async function startFaceRecognition(base64Image, studentName) {
         
     } catch (error) {
         failBEEP.play();
+        removeLoader()
         console.error("Error:", error);
         statusText.textContent = `Error: ${error.message}`;
         statusText.className = 'error';
@@ -694,6 +700,7 @@ async function getStudentInfo(studentid) {
         
     } catch (error) {
         failBEEP.play();
+        removeLoader()
         window.errorLog.push(error)
         dlog('Error:', error);
         createAlertPopup(5000, null, 'Error', 'Error while sending data to server')
@@ -955,6 +962,8 @@ async function createNewStudentPass(studentid, floorid, destinationid) {
 
         const responseJson = await response.json();
 
+        removeLoader()
+
         switch (responseJson.status) {
             case "error":
                 failBEEP.play();
@@ -968,6 +977,7 @@ async function createNewStudentPass(studentid, floorid, destinationid) {
 
     } catch (error) {
         failBEEP.play();
+        removeLoader()
         dlog('Error:', error);
         createAlertPopup(5000, null, 'Error', 'Error while sending data to server');
         return 'error';

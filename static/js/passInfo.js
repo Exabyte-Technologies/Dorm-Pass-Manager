@@ -69,11 +69,11 @@ async function fetchPassInfo(passid) {
         document.getElementById('studentGrade').textContent = studentInfo[1];
         document.getElementById('studentFloor').textContent = floorInfo[0];
         document.getElementById('destination').textContent = destinationInfo[0];
-        document.getElementById('flagged').textContent = passInfo[3] ? "Yes" : "No";
-        document.getElementById('fleavetime').textContent = passInfo[4] || "N/A";
-        document.getElementById('darrivetime').textContent = passInfo[5] || "N/A";
-        document.getElementById('dleavetime').textContent = passInfo[6] || "N/A";
-        document.getElementById('farrivetime').textContent = passInfo[7] || "N/A";
+        document.getElementById('flagged').innerHTML = passInfo[3] ? "<b style='color:red'>Yes</b>" : "No";
+        document.getElementById('fleavetime').innerHTML = passInfo[4] || "N/A";
+        document.getElementById('darrivetime').innerHTML = passInfo[5] || "N/A";
+        document.getElementById('dleavetime').innerHTML = passInfo[6] || "N/A";
+        document.getElementById('farrivetime').innerHTML = passInfo[7] || "N/A";
         document.getElementById('studentImage').src = studentInfo[3];
 
         document.getElementById('studentName').onclick = function () {document.getElementById('studentImage').src = studentInfo[3];};
@@ -81,25 +81,25 @@ async function fetchPassInfo(passid) {
         if (document.getElementById('fleavetime').textContent != "N/A") {
             document.getElementById('fleavetime').onclick = function () {studentImage.src = passImages[0];};
             if (passImages[0] == null || passImages[0] == '') {
-                document.getElementById('fleavetime').onclick = function () {studentImage.src = '/static/resource/studentImagePlaceholder.png'};
+                document.getElementById('fleavetime').onclick = function () {studentImage.src = '/static/resource/noImageApprove.png'};
             }
         }
         if (document.getElementById('darrivetime').textContent != "N/A") {
             document.getElementById('darrivetime').onclick = function () {studentImage.src = passImages[1];};
             if (passImages[1] == null || passImages[1] == '') {
-                document.getElementById('darrivetime').onclick = function () {studentImage.src = '/static/resource/studentImagePlaceholder.png'};
+                document.getElementById('darrivetime').onclick = function () {studentImage.src = '/static/resource/noImageApprove.png'};
             }
         }
         if (document.getElementById('dleavetime').textContent != "N/A") {
             document.getElementById('dleavetime').onclick = function () {studentImage.src = passImages[2];};
             if (passImages[2] == null || passImages[2] == '') {
-                document.getElementById('dleavetime').onclick = function () {studentImage.src = '/static/resource/studentImagePlaceholder.png'};
+                document.getElementById('dleavetime').onclick = function () {studentImage.src = '/static/resource/noImageApprove.png'};
             }
         }
         if (document.getElementById('farrivetime').textContent != "N/A") {
             document.getElementById('farrivetime').onclick = function () {studentImage.src = passImages[3];};
             if (passImages[3] == null || passImages[3] == '') {
-                document.getElementById('farrivetime').onclick = function () {studentImage.src = '/static/resource/studentImagePlaceholder.png'};
+                document.getElementById('farrivetime').onclick = function () {studentImage.src = '/static/resource/noImageApprove.png'};
             }
         }
 

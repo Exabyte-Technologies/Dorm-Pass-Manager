@@ -23,11 +23,13 @@ from flask_socketio import SocketIO, join_room, leave_room
 import base64
 import io
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFile
 import face_recognition
 from io import BytesIO
 from pathlib import Path
-
+import cv2
+from deepface import DeepFace
+import tempfile
 
 app = Flask(__name__)
 
@@ -56,6 +58,8 @@ dbpassword = serverConfig['database']['dbpassword']
 dbdatabase = serverConfig['database']['dbdatabase']
 
 socketio = SocketIO(app)
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def dprint(text):
     if debug:
@@ -316,49 +320,62 @@ def checkPassword(password):
         return False, error_message.strip()
     return True, "Password is valid"
 
-def compareBase64Faces(test_image_b64, reference_image_b64, confidence_threshold=0.6):
-    # Remove MIME prefix if present
-    if test_image_b64.startswith('data:image/'):
-        test_image_b64 = test_image_b64.split(',', 1)[1]
-    if reference_image_b64.startswith('data:image/'):
-        reference_image_b64 = reference_image_b64.split(',', 1)[1]
-    
-    # Decode base64 to image data
+def compareBase64Faces(test_image_base64, ref_image_base64, confidence_threshold):
     try:
-        test_image_data = base64.b64decode(test_image_b64)
-        reference_image_data = base64.b64decode(reference_image_b64)
-    except base64.binascii.Error as e:
+        # Add padding to base64 strings if necessary
+        def add_padding(base64_str):
+            # Remove any data URL prefix if present
+            if ',' in base64_str:
+                base64_str = base64_str.split(',')[1]
+                
+            missing_padding = len(base64_str) % 4
+            if missing_padding:
+                base64_str += '=' * (4 - missing_padding)
+            return base64_str
+
+        test_image_base64 = add_padding(test_image_base64)
+        ref_image_base64 = add_padding(ref_image_base64)
+        
+        # Decode base64 strings to image data
+        test_data = base64.b64decode(test_image_base64)
+        ref_data = base64.b64decode(ref_image_base64)
+        
+        # Convert to PIL Images
+        test_img = Image.open(BytesIO(test_data))
+        ref_img = Image.open(BytesIO(ref_data))
+        
+        # Convert to RGB if necessary
+        if test_img.mode != 'RGB':
+            test_img = test_img.convert('RGB')
+        if ref_img.mode != 'RGB':
+            ref_img = ref_img.convert('RGB')
+        
+        # Convert to numpy arrays
+        test_array = np.array(test_img)
+        ref_array = np.array(ref_img)
+        
+        # Use DeepFace to verify the faces using numpy arrays
+        result = DeepFace.verify(
+            img1_path=test_array,
+            img2_path=ref_array,
+            model_name='Facenet512',
+            distance_metric='cosine',
+            enforce_detection=False,  # Set to False to handle cases where no face is detected
+            detector_backend='opencv'
+        )
+        
+        # Check if faces were detected in both images
+        if not result.get('verified', False):
+            return False
+        
+        # Convert distance to confidence (distance is between 0 and 1, lower is better)
+        confidence = 1 - result['distance']
+        return confidence >= confidence_threshold
+        
+    except Exception as e:
+        # Handle any errors during the process
+        print(f"Error during face comparison: {str(e)}")
         return False
-    
-    # Load images using face_recognition
-    test_image = face_recognition.load_image_file(io.BytesIO(test_image_data))
-    reference_image = face_recognition.load_image_file(io.BytesIO(reference_image_data))
-    
-    # Detect faces in the test image
-    test_face_locations = face_recognition.face_locations(test_image, model='hog')
-    if not test_face_locations:
-        return False
-    
-    # Select the largest face (closest to camera) in test image
-    test_face_areas = [(top, right, bottom, left, (bottom - top) * (right - left)) for (top, right, bottom, left) in test_face_locations]
-    test_face_areas.sort(key=lambda x: x[4], reverse=True)  # Sort by area descending
-    largest_test_face = test_face_areas[0]  # (top, right, bottom, left, area)
-    test_face_encoding = face_recognition.face_encodings(test_image, known_face_locations=[largest_test_face[:4]], num_jitters=1)
-    if not test_face_encoding:
-        return False
-    test_face_encoding = test_face_encoding[0]
-    
-    # Detect and encode faces in the reference image
-    reference_face_encodings = face_recognition.face_encodings(reference_image, num_jitters=1)
-    if not reference_face_encodings:
-        return False
-    reference_face_encoding = reference_face_encodings[0]  # Use the first face found
-    
-    # Compare faces
-    face_distance = face_recognition.face_distance([reference_face_encoding], test_face_encoding)[0]
-    confidence = 1 - face_distance  # Convert distance to confidence score
-    
-    return confidence >= confidence_threshold
 
 def compress_image(base64_str, max_size=1024*1024):
     # Decode base64 to image data
@@ -1114,10 +1131,12 @@ def microsoftLoginCallback():
                 keepSessionDays = int(getSettingsValue('keepSessionDays'))
                 sessioninfo = sessionStorage.create(oid, keepSessionDays, False)
                 session['sessionid'] = str(encrypt(sessioninfo[0]))
-                session['passkey'] = str(encrypt(sessioninfo[1]))   
+                session['passkey'] = str(encrypt(sessioninfo[1]))  
+
+                userName = result[0][1] 
 
                 session['login'] = True
-                return render_template('firstLanding.html')
+                return render_template('firstLanding.html', userName = userName)
                 
             with dbConnect() as connection:
                 with connection.cursor() as dbcursor:
@@ -1630,10 +1649,10 @@ def approvePassByCard():
             retinfo['status'] = 'error'
             retinfo['errorinfo'] = 'Missing test image'
             return jsonify(retinfo)
-
+        
         studentImageBase64 = getStudentImageFromId(studentid)
 
-        compareFaceResult = compareBase64Faces(studentTestImageBase64, studentImageBase64)
+        compareFaceResult = compareBase64Faces(studentTestImageBase64, studentImageBase64, 0.72)
 
         returnSocketInfo = {'studentName': studentName, 'studentFloorId': studentFloorId, 'studentImage': studentImageBase64, 'studentScanImage': studentTestImageBase64}
 
@@ -1824,13 +1843,14 @@ def approvePassByCard():
         return jsonify(retinfo)
     
     image_field = approver_field.replace('approver', 'image')
+    ka_field = approver_field.replace('approver', 'ka')
     
     timestamp = currentDatetime()
     with dbConnect() as connection:
         with connection.cursor() as dbcursor:
             dbcursor.execute(
-                f'UPDATE passes SET {time_field} = %s, {approver_field} = %s, {image_field} = %s WHERE passid = %s',
-                (timestamp, userid, studentTestImageBase64, passid)
+                f'UPDATE passes SET {time_field} = %s, {approver_field} = %s, {image_field} = %s, {ka_field} = %s WHERE passid = %s',
+                (timestamp, userid, studentTestImageBase64, isKiosk, passid)
             )
     
     retinfo['status'] = 'ok'
@@ -3444,14 +3464,17 @@ def getPassInfo():
         with dbConnect() as connection:
             with connection.cursor() as dbcursor:
                 dbcursor.execute('''
-                    SELECT studentid, floorid, destinationid, flagged, fleavetime, darrivetime, dleavetime, farrivetime, flapprover, daapprover, dlapprover, faapprover FROM passes WHERE passid = %s ''', (passid,))
+                    SELECT studentid, floorid, destinationid, flagged, fleavetime, darrivetime, dleavetime, farrivetime, flapprover, daapprover, dlapprover, faapprover, flka, daka, dlka, faka FROM passes WHERE passid = %s ''', (passid,))
                 passinfo = dbfetchedOneConvertDate(dbcursor.fetchone())
 
         for i in range(4):
             if passinfo[i + 8] != None:
                 passinfo[i + 4] = passinfo[i + 4].strftime("%Y-%m-%d %H:%M:%S")
                 if appendApproverName:
-                    passinfo[i + 4] += '\n' + getUserNameFromId(passinfo[i + 8])
+                    passinfo[i + 4] += '\n'
+                    if passinfo[i + 12]:
+                        passinfo[i + 4] += '🇰 '
+                    passinfo[i + 4] += getUserNameFromId(passinfo[i + 8])
                 
         with dbConnect() as connection:
             with connection.cursor() as dbcursor:

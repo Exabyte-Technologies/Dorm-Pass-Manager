@@ -1103,6 +1103,11 @@ async function mainProcess() {
 
     const firstLanding = urlParams.get('firstLanding')
     const rejectionmessage = urlParams.get('reject')
+    const viewPassId = urlParams.get('viewPass')
+
+    if (viewPassId != null && viewPassId != undefined && viewPassId != '') {
+        renderPassInfoPopup(viewPassId)
+    }
 
     if (rejectionmessage != null && rejectionmessage != undefined && rejectionmessage != '') {
         createAlertPopup(5000, null, 'Rejected From Page', rejectionmessage)
@@ -1346,7 +1351,7 @@ async function kioskSocketActionSetup() {
                 break;
             case "error":
                 var studentFloorName = window.floorLocationJson[cmd.studentFloorId][0]
-                createAlertPopup(20000, 'error', 'KIOSK Approve Error', `<b>${cmd.studentName} - ${studentFloorName}</b><br>${cmd.errorinfo}<br>${currentTimeString}`, '', cmd.studentImage, cmd.studentScanImage);
+                createAlertPopup(300000, 'error', 'KIOSK Approve Error', `<b>${cmd.studentName} - ${studentFloorName}</b><br>${cmd.errorinfo}<br>${currentTimeString}`, '', cmd.studentImage, cmd.studentScanImage);
                 failBEEP.play();
                 break;
             default:
