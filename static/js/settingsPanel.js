@@ -21,9 +21,7 @@ function dlog(text) {
     }
 }
 
-window.onbeforeunload = function(e) {
-    return 'Are you sure you want to leave this page?  You will lose any unsaved data.';
-};
+window.onbeforeunload = null;
 
 function renderLoader() {
     const loaderslot = document.getElementById("loaderSlot")
@@ -272,7 +270,7 @@ function createAlertPopup(closetimeout, type = null, title, body, alertid = '') 
     }
 }
 
-async function setLocationSelector(locationJson) {
+async function setLocationSelector(locationJson, role = 3) {
     const optionSlot = document.getElementById("locationSelector")
     var locations = []
     var locationJson = await locationJson
@@ -284,6 +282,7 @@ async function setLocationSelector(locationJson) {
         option.text = curlocation;
         optionSlot.appendChild(option);
     });
+    optionSlot.disabled = role != 1
 }
 
 async function setUsernameTopbar(username) {
@@ -597,7 +596,10 @@ async function mainProcess() {
     var floorIds = await getLocationId(2)
     var userinfo = await getUserInfo()
     var username = userinfo['user'][1]
+    var role = userinfo['user'][4]
     window.selectedOption = null
+
+    document.getElementById('editUserLocation').disabled = role != 1
 
     if (userinfo == 'error') {
         userinfo = null
@@ -607,20 +609,41 @@ async function mainProcess() {
 
     setUsernameTopbar(username)
 
-    setLocationSelector(destinationIds);  
-    setLocationSelector(floorIds); 
+    setLocationSelector(destinationIds, role);  
+    setLocationSelector(floorIds, role); 
+    try { if (typeof applyNavPermissions === 'function') applyNavPermissions(role) } catch (e) { dlog('applyNavPermissions not available') }
     
     document.getElementById('passesNavButton').onclick = function(event) {
-        window.location.href = '/passCatalog'
+        event.preventDefault();
+        if (typeof window.navigateWithFade === 'function') {
+            window.navigateWithFade('/passCatalog');
+        } else {
+            window.location.href = '/passCatalog';
+        }
     }
     document.getElementById('studentsNavButton').onclick = function(event) {
-        window.location.href = '/studentCatalog'
+        event.preventDefault();
+        if (typeof window.navigateWithFade === 'function') {
+            window.navigateWithFade('/studentCatalog');
+        } else {
+            window.location.href = '/studentCatalog';
+        }
     }
     document.getElementById('manageNavButton').onclick = function(event) {
-        window.location.href = '/managePanel'
+        event.preventDefault();
+        if (typeof window.navigateWithFade === 'function') {
+            window.navigateWithFade('/managePanel');
+        } else {
+            window.location.href = '/managePanel';
+        }
     }
     document.getElementById('settingsNavButton').onclick = function(event) {
-        window.location.href = '/settingsPanel'
+        event.preventDefault();
+        if (typeof window.navigateWithFade === 'function') {
+            window.navigateWithFade('/settingsPanel');
+        } else {
+            window.location.href = '/settingsPanel';
+        }
     }
 
     const locationSelector = window.document.getElementById('locationSelector')

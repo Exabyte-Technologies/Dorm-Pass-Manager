@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <link rel="icon" type="image/x-icon" href="/static/resource/favicon.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <script src="/static/js/card-scanner.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -33,6 +34,9 @@
             padding: 20px;
             background-color: #f0f0f0;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
         }
         
         .text {
@@ -325,11 +329,13 @@
           }
     </style>
 
+    <script src="/static/js/panelFade.js"></script>
+    <script src="/static/js/navPermissions.js"></script>
     <script src="/static/js/passCatalog.js"></script>
 <script src="/static/js/tamperDetect.js"></script>
 </head>
 
-<body id="body">
+<body id="body" class="auth-page">
     <div id="loaderSlot"></div>
     <div class="alertContainer" id="alertContainer"></div>
     <div class="top-bar">
@@ -387,7 +393,7 @@
             <canvas class="chart" id="studentStatusChart" style="width:100%;max-width:600px"></canvas>
         </div>
     </div>
-    <div class="overlay" id="popupOverlay">
+    <div class="overlay" id="popupOverlay" style="display:none;">
         <div class="popup">
             <button class="overlayCloseBtn" id="overlayCloseBtn">×</button>
             <div id="overlayContent"></div>

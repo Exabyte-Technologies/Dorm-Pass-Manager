@@ -424,3 +424,57 @@ hr {
     position: absolute;
     margin-right: 5px;
 }
+
+/* Authorized pages background with blur and tint */
+.auth-page {
+    position: relative;
+}
+
+.auth-page::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url('/static/resource/signinBackground.jpg');
+    background-size: cover;
+    background-position: center center;
+    filter: blur(8px) brightness(0.95);
+    transform: scale(1.03);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.auth-page::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.32);
+    z-index: 1;
+    pointer-events: none;
+}
+
+.auth-page > * {
+    position: relative;
+    z-index: 2;
+}
+
+/* Disabled nav button styling */
+.nav-disabled {
+    opacity: 0.55 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    box-shadow: none !important;
+}
+/* Ensure loader and chat are at the very top */
+#loaderSlot,
+.mylivechat_inline,
+.swal2-container {
+    position: fixed !important;
+    z-index: 10000 !important;
+    pointer-events: auto;
+}
+
+/* Prevent scrolling past the top (hard limit, no overshoot/bounce) */
+html, body {
+    overscroll-behavior: none;
+    overscroll-behavior-y: contain;
+}

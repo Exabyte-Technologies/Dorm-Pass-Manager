@@ -1,4 +1,14 @@
 {
+    "campusInfo" : {
+        "name": "Keystone Academy",
+        "address": "No.11, Anfu Street, Houshayu, Shunyi District, Beijing 101318",
+        "phone": "10-8049-6008",
+        "email": "contact@keystoneacademy.cn",
+        "url": "https://keystoneacademy.cn",
+        "logo": "/static/resource/logo.jpg",
+        "background": "/static/resource/background.jpg"
+    },
+
     "session" : {
         "keyLength": 24,
         "lifetime": 30

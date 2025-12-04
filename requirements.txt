@@ -1,7 +1,14 @@
 Flask
-Flask-Session-Captcha
+flask-session-captcha
+Flask-SocketIO
 cryptography
 msal
 mysql-connector-python
 pytz
-Flask-SocketIO
+numpy
+Pillow
+face_recognition
+dlib
+opencv-python
+deepface
+tf-keras

@@ -1,12 +1,15 @@
-from flask import *
+from flask import (
+    Flask, render_template, request, session, redirect, 
+    send_file, jsonify, make_response
+)
 from flask_session_captcha import FlaskSessionCaptcha
 from cryptography.fernet import Fernet
 from msal import ConfidentialClientApplication
-from mysql.connector import *
+from mysql.connector import Error as MySQLError
 import mysql.connector
 import os
 import re
-from datetime import *
+from datetime import datetime, timedelta, timezone
 import time
 import string
 import random
@@ -30,6 +33,54 @@ from pathlib import Path
 import cv2
 from deepface import DeepFace
 import tempfile
+
+# Import from models package
+from models import (
+    dbConnect as db_connect,
+    convertTimezone,
+    dbfetchedConvertDate,
+    dbfetchedOneConvertDate,
+    getRecord,
+    getSingleRecord,
+    generateSHA256,
+    checkNameLength as validate_name_length,
+    checkGrade as validate_grade,
+    checkCardidLength as validate_cardid_length,
+    checkEmailLength as validate_email_length,
+    checkPassword,
+    validate_json_payload,
+    getStudentInfoFromId as getStudentInfoFromId_model,
+    getStudentNameFromId as getStudentNameFromId_model,
+    getStudentGradeFromId as getStudentGradeFromId_model,
+    getStudentFloorIdFromId as getStudentFloorIdFromId_model,
+    getStudentCardidFromId as getStudentCardidFromId_model,
+    getStudentEmailFromId as getStudentEmailFromId_model,
+    getStudentImageFromId as getStudentImageFromId_model,
+    isStudentSuspended as check_student_suspended,
+    suspend_student,
+    getUserNameFromOid as getUserNameFromOid_model,
+    getUserIdFromOid as getUserIdFromOid_model,
+    getUserNameFromId as getUserNameFromId_model,
+    getUserEmailFromOid as getUserEmailFromOid_model,
+    getOidFromUserId as getOidFromUserId_model,
+    checkUserInformation as checkUserInformation_model,
+    verifyPassword as verifyPassword_model,
+    getLocationNameFromId as getLocationNameFromId_model,
+    getLocationIdFromName as getLocationIdFromName_model,
+    getLocationType as getLocationType_model,
+    getLocationsInformation as getLocationsInformation_model,
+    joinLocations,
+    getSettingsValue as get_setting,
+    setSettingsValue,
+    sessionStorage,
+    listToJson,
+    currentDatetime as get_current_datetime,
+    calculateElapsedSeconds as calculateElapsedSeconds_model,
+    convertSecondsToTime,
+    getScriptDir,
+    encrypt as encrypt_data,
+    decrypt as decrypt_data
+)
 
 app = Flask(__name__)
 
@@ -63,33 +114,22 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 def dprint(text):
     if debug:
-        dprint(text)
-        
-def encrypt(data):
-    encrypted_data = str(fernet.encrypt(data.encode()).decode('ascii'))
-    return encrypted_data
+        print(text)
 
-def decrypt(encrypted_data):
-    decrypted_data = fernet.decrypt(encrypted_data).decode()
-    return decrypted_data
 
-def generateSHA256(text):
-    if text == None:
-        return None
-    
-    return str(hashlib.sha256(text.encode()).hexdigest())
-
+# Create database connection wrapper with config parameters
 def dbConnect():
     global dbhost, dbuser, dbpassword, dbdatabase
+    return db_connect(dbhost, dbuser, dbpassword, dbdatabase)
 
-    return mysql.connector.connect(
-    host=dbhost,
-    user=dbuser,
-    password=dbpassword,
-    autocommit = True,
-    database=dbdatabase,
-    buffered = True
-)
+
+# Create encryption/decryption wrappers
+def encrypt(data):
+    return encrypt_data(data, fernet)
+
+
+def decrypt(encrypted_data):
+    return decrypt_data(encrypted_data, fernet)
 
 def get_msal_app():
     return ConfidentialClientApplication(
@@ -105,130 +145,73 @@ def generate_csrf_token():
 
 app.jinja_env.globals['csrf_token'] = generate_csrf_token
     
-def checkUserInformation(usergetparam, oid):
+
+def checkUserInformation_wrapper(usergetparam, oid):
+    """Wrapper to match original API"""
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute(f"SELECT {usergetparam} FROM users WHERE oid = %s", (oid,))
-            dbcursorfetch = dbfetchedConvertDate(dbcursor.fetchall())
-            
-    if len(dbcursorfetch) < 1:
-        return None
-    
-    return dbcursorfetch[0]
+        return checkUserInformation_model(connection, usergetparam, oid)
+
+
+# Alias for backward compatibility
+checkUserInformation = checkUserInformation_wrapper
+
 
 def checkStudentInformation(studentgetparam, oid):
+    """Get student information by OID"""
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute(f"SELECT {studentgetparam} FROM students WHERE oid = %s", (oid,))
-            dbcursorfetch = dbfetchedConvertDate(dbcursor.fetchall())
-            
-    if len(dbcursorfetch) < 1:
-        return None
+        result = getRecord(
+            connection,
+            "students",
+            studentgetparam,
+            "oid = %s",
+            (oid,)
+        )
     
-    return dbcursorfetch[0]
+    return result[0] if result else None
 
-def getLocationsInformation(type, locationid = None):
-    if locationid == None:
-        with dbConnect() as connection:
-            with connection.cursor() as dbcursor:
-                dbcursor.execute("SELECT locationid, name FROM locations WHERE type = %s", (type,))
-                dbcursorfetch = dbfetchedConvertDate(dbcursor.fetchall())
-    else:            
-        with dbConnect() as connection:
-            with connection.cursor() as dbcursor:
-                dbcursor.execute("SELECT locationid, name FROM locations WHERE locationid = %s AND type = %s", (locationid, type,))
-                dbcursorfetch = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(dbcursorfetch) < 1:
-        return None
-    
-    return dbcursorfetch
 
-def getLocationType(locationid):
+def getLocationsInformation_wrapper(location_type, locationid=None):
+    """Wrapper for getLocationsInformation from models"""
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute("SELECT type FROM locations WHERE locationid = %s", (locationid,))
-            dbcursorfetch = dbfetchedConvertDate(dbcursor.fetchall())
-                        
-    return dbcursorfetch[0][0]
+        return getLocationsInformation_model(connection, location_type, locationid)
 
-def getSettingsValue(settingName):
+
+def getLocationType_wrapper(locationid):
+    """Wrapper for getLocationType from models"""
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT value FROM settings WHERE name = %s', (settingName,))
-            dprint(dbcursor.statement)
-            dbcursorfetch = dbfetchedConvertDate(dbcursor.fetchall())
-                       
-    dprint('setf')
-    dprint(dbcursorfetch) 
-    return dbcursorfetch[0][0]
+        return getLocationType_model(connection, locationid)
 
-def joinLocations(locationList):
-    joinedString = ""
-    for i in range(len(locationList)):
-        joinedString += str(locationList[i][1])
-        joinedString += ','
-    joinedString = joinedString[:-1]
-    return joinedString
 
-def convertTimezone(prevTime):
-    conversionTimezone = pytz.timezone('Asia/Shanghai')
-    return conversionTimezone.localize(prevTime)
-
-def dbfetchedConvertDate(dbcursorFetched):
-    returnResult = []
-    for entry in dbcursorFetched:
-        returnResult.append([])
-        try:
-            for element in entry:
-                if 1 and isinstance((element), datetime):
-                    returnResult[-1].append(convertTimezone(element))
-                else:
-                    returnResult[-1].append(element)
-        except:
-            pass
-    return returnResult
-
-def dbfetchedOneConvertDate(dbcursorFetched):
-    returnResult = []
-    for element in dbcursorFetched:
-        if 1 and isinstance((element), datetime):
-            returnResult.append(convertTimezone(element))
-        else:
-            returnResult.append(element)
-    return returnResult
+# Aliases for backward compatibility  
+getLocationsInformation = getLocationsInformation_wrapper
+getLocationType = getLocationType_wrapper
 
 def ensureLoggedIn(session, allowedroles = 3, studentPortal = False, kioskAllowed = False):
     try:
-        sessionid = decrypt(str(session.get('sessionid')))
-        passkey = decrypt(str(session.get('passkey')))
-        isKiosk = session.get('kiosk')
+        with dbConnect() as connection:
+            sessionid = decrypt(str(session.get('sessionid')))
+            passkey = decrypt(str(session.get('passkey')))
+            isKiosk = session.get('kiosk')
 
-        if not kioskAllowed and isKiosk:
-            return False
-        
-        userinfo = sessionStorage.verify(sessionid, passkey)
-        if studentPortal:
-            if userinfo[2] == False:
+            if not kioskAllowed and isKiosk:
                 return False
-            return True
-        if userinfo != None and userinfo[1] <= allowedroles and userinfo[2] == False:
-            if isKiosk:
-                return 'kiosk'
-            return True
-        else:
-            return False
+            
+            userinfo = sessionStorage.verify(sessionid, passkey)
+            if studentPortal:
+                if userinfo[2] == False:
+                    return False
+                return True
+            if userinfo != None and userinfo[1] <= allowedroles and userinfo[2] == False:
+                if isKiosk:
+                    return 'kiosk'
+                return True
+            else:
+                return False
     except:
         return False
     
 def currentDatetime():
-    return convertTimezone(datetime.now())
-
-def listToJson(lst):
-    res_dict = {}
-    for i in range(len(lst)):
-        res_dict[str(lst[i][0])] = lst[i][1:]
-    return res_dict
+    return get_current_datetime(convertTimezone)
 
 def getPassStatus(passid):
     with dbConnect() as connection:
@@ -247,78 +230,64 @@ def getPassStatus(passid):
     else:
         return None
     
-def calculateElapsedSeconds(timestamp):
-    rawtime = currentDatetime() - timestamp
-    return rawtime.days * 86400 + rawtime.seconds
+def currentDatetime():
+    return get_current_datetime(convertTimezone)
 
-def convertSecondsToTime(seconds):
-    seconds = seconds % (24 * 3600)
-    hour = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-     
-    return [hour, minutes, seconds]
 
-def checkNameLength(name):
-    minNameLength = int(getSettingsValue('minNameLength'))
-    maxNameLength = int(getSettingsValue('maxNameLength'))
-    
-    if len(name) < minNameLength or len(name) > maxNameLength:
-        return False
-    else:
-        return True
-    
-def checkGrade(grade):
-    minGrade = int(getSettingsValue('minGrade'))
-    maxGrade = int(getSettingsValue('maxGrade'))
-    
-    if int(grade) < minGrade or int(grade) > maxGrade:
-        return False
-    else:
-        return True
-    
-def checkCardidLength(cardid):
-    minCardidLength = int(getSettingsValue('minCardidLength'))
-    maxCardidLength = int(getSettingsValue('maxCardidLength'))
-    
-    if len(cardid) < minCardidLength or len(cardid) > maxCardidLength:
-        return False
-    else:
-        return True
-    
-def checkEmailLength(email):
-    minEmailLength = int(getSettingsValue('minEmailLength'))
-    maxEmailLength = int(getSettingsValue('maxEmailLength'))
-    
-    if len(email) < minEmailLength or len(email) > maxEmailLength:
-        return False
-    else:
-        return True
-    
-def checkPassword(password):
-    error_message = ""
-    
-    if len(password) < 8:
-        error_message += "Password is too short (minimum 8 characters)\n"
-    elif len(password) > 20:
-        error_message += "Password is too long (maximum 20 characters)\n"
-    
-    if not password.isalnum():
-        error_message += "Password contains special characters (only letters and numbers allowed)\n"
-    
-    if not any(char.isupper() for char in password):
-        error_message += "Password must contain at least one uppercase letter\n"
-    
-    if not any(char.islower() for char in password):
-        error_message += "Password must contain at least one lowercase letter\n"
-    
-    if not any(char.isdigit() for char in password):
-        error_message += "Password must contain at least one number\n"
-    
-    if error_message:
-        return False, error_message.strip()
-    return True, "Password is valid"
+def calculateElapsedSeconds_func(timestamp):
+    return calculateElapsedSeconds_model(timestamp, currentDatetime)
+
+
+# Alias for backward compatibility
+calculateElapsedSeconds = calculateElapsedSeconds_func
+
+def validate_name_length_wrapper(name):
+    """Wrapper to get setting values"""
+    with dbConnect() as connection:
+        min_length = int(get_setting(connection, 'minNameLength'))
+        max_length = int(get_setting(connection, 'maxNameLength'))
+    return validate_name_length(name, min_length, max_length)
+
+
+def validate_grade_wrapper(grade):
+    """Wrapper to get setting values"""
+    with dbConnect() as connection:
+        min_grade = int(get_setting(connection, 'minGrade'))
+        max_grade = int(get_setting(connection, 'maxGrade'))
+    return validate_grade(grade, min_grade, max_grade)
+
+
+def validate_cardid_length_wrapper(cardid):
+    """Wrapper to get setting values"""
+    with dbConnect() as connection:
+        min_length = int(get_setting(connection, 'minCardidLength'))
+        max_length = int(get_setting(connection, 'maxCardidLength'))
+    return validate_cardid_length(cardid, min_length, max_length)
+
+
+def validate_email_length_wrapper(email):
+    """Wrapper to get setting values"""
+    with dbConnect() as connection:
+        min_length = int(get_setting(connection, 'minEmailLength'))
+        max_length = int(get_setting(connection, 'maxEmailLength'))
+    return validate_email_length(email, min_length, max_length)
+
+
+# Aliases for the validation wrappers
+checkNameLength = validate_name_length_wrapper
+checkGrade = validate_grade_wrapper
+checkCardidLength = validate_cardid_length_wrapper
+checkEmailLength = validate_email_length_wrapper
+
+
+# Wrapper for getSettingsValue to match the original function signature
+def getSettingsValue_wrapper(settingName):
+    with dbConnect() as connection:
+        return get_setting(connection, settingName)
+
+
+getSettingsValue = getSettingsValue_wrapper
+
 
 def compareBase64Faces(test_image_base64, ref_image_base64, confidence_threshold):
     try:
@@ -479,92 +448,45 @@ def validate_json_payload(payload: Union[str, dict]) -> bool:
         return False
 
     return True
-    
-def isStudentSuspended(studentid):
-    with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT suspension, suspensionED FROM students WHERE studentid = %s', (studentid,))
-            result = dbfetchedOneConvertDate(dbcursor.fetchone())
-    if not result:
-        return False
-    suspension, suspensionED = result
-    if not suspension:
-        return False
-    if suspensionED:
-        if isinstance(suspensionED, str):
-            try:
-                suspensionED_dt = datetime.strptime(suspensionED, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                suspensionED_dt = datetime.fromisoformat(suspensionED)
-        else:
-            suspensionED_dt = suspensionED
-        if suspensionED_dt < currentDatetime():
-            with dbConnect() as connection:
-                with connection.cursor() as dbcursor:
-                    dbcursor.execute("UPDATE students SET suspension = NULL, suspensionED = NULL WHERE studentid = %s", (studentid,))
-            return False
-    return suspension
 
+
+# Wrapper for isStudentSuspended from models
+def isStudentSuspended_wrapper(studentid):
+    with dbConnect() as connection:
+        return check_student_suspended(connection, studentid, currentDatetime)
+
+
+# Wrapper for sessionStorage - creates new class that delegates to models
 class sessionStorage:
-    def create(oid, keepstatedays, isstudent = False):
-        passkeylength = int(getSettingsValue('passkeyLength'))
-        passkey = ''.join(random.choices(string.ascii_uppercase + string.digits, k=passkeylength))
-        expdate = currentDatetime() + timedelta(days=keepstatedays)
-        
+    @staticmethod
+    def create(oid, keepstatedays, isstudent=False):
         with dbConnect() as connection:
-            with connection.cursor() as dbcursor:
-                dbcursor.execute('INSERT INTO sessions (oid, passkey, expdate, active, isstudent) VALUES (%s, %s, %s, %s, %s)', (oid, passkey, expdate, True, isstudent))
-                dbcursor.execute('SELECT LAST_INSERT_ID()')
-                result = dbfetchedConvertDate(dbcursor.fetchall())
-                                
-        return [str(result[0][0]), passkey]
-                
+            result = sessionStorage_model.create(
+                connection, oid, keepstatedays,
+                get_setting,
+                lambda: get_current_datetime(convertTimezone),
+                isstudent
+            )
+        return result
+    
+    @staticmethod
     def verify(sessionid, passkey):
         with dbConnect() as connection:
-            with connection.cursor() as dbcursor:
-                dbcursor.execute('SELECT oid, expdate, isstudent FROM sessions WHERE sessionid = %s AND passkey = %s AND active = true', (sessionid, passkey))
-                result = dbfetchedConvertDate(dbcursor.fetchall())
-        
-        if len(result) < 1:
-            return None
-
-        oid = result[0][0]
-        expdate = result[0][1]
-        isstudent = result[0][2]
-        
-        if expdate < currentDatetime():
-            with dbConnect() as connection:
-                with connection.cursor() as dbcursor:
-                    dbcursor.execute('UPDATE sessions SET active = false WHERE sessionid = %s AND passkey = %s', (sessionid, passkey))
-            return None
-        
-        userrole = None
-        
-        if not isstudent:
-            with dbConnect() as connection:
-                with connection.cursor() as dbcursor:
-                    dbcursor.execute('SELECT role FROM users WHERE oid = %s', (oid,))
-                    userrole = dbfetchedConvertDate(dbcursor.fetchall())[0][0]
-
-        return [oid, userrole, isstudent]
+            return sessionStorage_model.verify(connection, sessionid, passkey, lambda: get_current_datetime(convertTimezone))
     
+    @staticmethod
     def deactivate(sessionid, passkey):
         with dbConnect() as connection:
-            with connection.cursor() as dbcursor:
-                dbcursor.execute('UPDATE sessions SET active = FALSE WHERE sessionid = %s AND passkey = %s', (sessionid, passkey))
-                
-        return True
-        
-def verifyPassword(userid, password):
+            return sessionStorage_model.deactivate(connection, sessionid, passkey)
+
+
+# Import the model sessionStorage as sessionStorage_model to avoid naming conflict
+from models import sessionStorage as sessionStorage_model
+
+
+def verifyPassword_wrapper(userid, password):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT password FROM users WHERE userid = %s', (userid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return False
-    
-    return generateSHA256(password) == result[0][0]
+        return verifyPassword_model(connection, userid, password)
     
 def getOidFromSession(session):
     sessionid_enc = session.get('sessionid')
@@ -580,143 +502,64 @@ def getOidFromSession(session):
 
     return oid
 
-def getOidFromUserId(userid):
-    with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT oid FROM users WHERE userid = %s', (userid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
 
-def getLocationNameFromId(locationid):
+# Wrapper functions to delegate to models with simplified signatures
+def getOidFromUserId_wrapper(userid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT name FROM locations WHERE locationid = %s', (locationid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getOidFromUserId_model(connection, userid)
 
-def getStudentNameFromId(studentid):
+
+def getLocationNameFromId_original(locationid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT name FROM students WHERE studentid = %s', (studentid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getLocationNameFromId_model(connection, locationid)
 
-def getStudentGradeFromId(studentid):
+
+def getStudentNameFromId_original(studentid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT grade FROM students WHERE studentid = %s', (studentid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getStudentNameFromId_model(connection, studentid)
 
-def getStudentFloorIdFromId(studentid):
+
+def getStudentGradeFromId_original(studentid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT floorid FROM students WHERE studentid = %s', (studentid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getStudentGradeFromId_model(connection, studentid)
 
-def getStudentCardidFromId(studentid):
+
+def getStudentFloorIdFromId_original(studentid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT cardid FROM students WHERE studentid = %s', (studentid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getStudentFloorIdFromId_model(connection, studentid)
 
-def getStudentEmailFromId(studentid):
+
+def getStudentCardidFromId_original(studentid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT email FROM students WHERE studentid = %s', (studentid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getStudentCardidFromId_model(connection, studentid)
 
-def getUserNameFromOid(oid):
+
+def getStudentEmailFromId_original(studentid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT name FROM users WHERE oid = %s', (oid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getStudentEmailFromId_model(connection, studentid)
 
-def getUserIdFromOid(oid):
+
+def getUserNameFromOid_original(oid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT userid FROM users WHERE oid = %s', (oid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getUserNameFromOid_model(connection, oid)
 
-def getUserNameFromId(id):
+
+def getUserIdFromOid_original(oid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT name FROM users WHERE userid = %s', (id,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getUserIdFromOid_model(connection, oid)
 
-def getUserEmailFromOid(oid):
+
+def getUserNameFromId_original(userid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT email FROM users WHERE oid = %s', (oid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-    
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+        return getUserNameFromId_model(connection, userid)
 
-def getStudentInfoFromId(studentid):
+
+def getUserEmailFromOid_original(oid):
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute("SELECT name, grade, floorid, disabledlocations, cardid, email FROM students WHERE studentid = %s", (studentid,))
-            dbcursorfetch = dbfetchedConvertDate(dbcursor.fetchall())
-                
-    if len(dbcursorfetch) < 0:
-        return 'nostudent'
-    try:
-        studentinfo = dbcursorfetch[0]
-    except IndexError:
-        return 'nostudent'
-    
-    return studentinfo
+        return getUserEmailFromOid_model(connection, oid)
 
-def getStudentImageFromId(studentid):
+
+def getStudentImageFromId_original(studentid):
     with dbConnect() as connection:
         with connection.cursor() as dbcursor:
             dbcursor.execute('SELECT image FROM students WHERE studentid = %s', (studentid,))
@@ -727,8 +570,41 @@ def getStudentImageFromId(studentid):
     
     return result[0][0]
 
+
+def getStudentInfoFromId_original(studentid):
+    with dbConnect() as connection:
+        return getStudentInfoFromId_model(connection, studentid)
+
+
 def getScriptDir():
     return Path(__file__).resolve().parent
+
+
+# Create aliases for wrapper functions to match the original function names throughout the code
+# This allows us to use the models functions without changing all the calls
+getOidFromUserId = getOidFromUserId_wrapper
+getLocationNameFromId = getLocationNameFromId_original
+
+# Provide a thin wrapper that matches the original single-argument API
+# This calls the imported model function with a DB connection and keeps
+# the expected signature for existing callers.
+def getLocationIdFromName(location_name):
+    with dbConnect() as connection:
+        return getLocationIdFromName_model(connection, location_name)
+getStudentNameFromId = getStudentNameFromId_original
+getStudentGradeFromId = getStudentGradeFromId_original
+getStudentFloorIdFromId = getStudentFloorIdFromId_original
+getStudentCardidFromId = getStudentCardidFromId_original
+getStudentEmailFromId = getStudentEmailFromId_original
+getUserNameFromOid = getUserNameFromOid_original
+getUserIdFromOid = getUserIdFromOid_original
+getUserNameFromId = getUserNameFromId_original
+getUserEmailFromOid = getUserEmailFromOid_original
+getStudentImageFromId = getStudentImageFromId_original
+getStudentInfoFromId = getStudentInfoFromId_original
+isStudentSuspended = isStudentSuspended_wrapper
+verifyPassword = verifyPassword_wrapper
+
 
 class KIOSKPin:
     def generateNewKIOSKPin(userid):
@@ -780,16 +656,22 @@ def broadcastMasterCommand(command, payload = None, roles = ['admin', 'proctor',
     for role in roles:
         socketio.emit('command', {'command': command, 'payload': payload}, to=role)
 
-def getStudentIdFromOid(oid):
+def getStudentIdFromOid_wrapper(oid):
+    """Wrapper for getStudentIdFromOid from models"""
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT studentid FROM students WHERE oid = %s', (oid,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
+        result = getRecord(
+            connection,
+            "students",
+            "studentid",
+            "oid = %s",
+            (oid,)
+        )
     
-    if len(result) < 1:
-        return None
-    
-    return result[0][0]
+    return result[0][0] if result else None
+
+
+getStudentIdFromOid = getStudentIdFromOid_wrapper
+
 
 logging.basicConfig(
     filename='./networklogs.log',
@@ -800,15 +682,10 @@ logging.basicConfig(
 
 logging.info('started')
 
-def getLocationIdFromName(location_name):
+def getLocationIdFromName_wrapper(location_name):
+    """Wrapper for getLocationIdFromName from models"""
     with dbConnect() as connection:
-        with connection.cursor() as dbcursor:
-            dbcursor.execute('SELECT locationid FROM locations WHERE name = %s', (location_name,))
-            result = dbfetchedConvertDate(dbcursor.fetchall())
-
-    if len(result) < 1:
-        return None
-    return result[0][0]
+        return getLocationIdFromName_model(connection, location_name)
 
 @socketio.on('join')
 def socketiojoin(data):    
@@ -821,7 +698,10 @@ def socketiojoin(data):
         return
     
     role = checkUserInformation("role", oid)
-    userid = checkUserInformation("userid", oid)[0]
+    userid_result = checkUserInformation("userid", oid)
+    if userid_result is None:
+        return
+    userid = userid_result[0]
 
     if role == None:
         return
@@ -837,22 +717,6 @@ def socketiojoin(data):
 
     join_room(role)
     join_room('user' + str(userid))
-
-def suspend_student(studentid: int, message: str, suspension_end: datetime = None):
-    if not studentid or not message:
-        return False
-
-    try:
-        with dbConnect() as connection:
-            with connection.cursor() as dbcursor:
-                dbcursor.execute(
-                    'UPDATE students SET suspension = %s, suspensionED = %s WHERE studentid = %s',
-                    (message, suspension_end, studentid)
-                )
-        return True
-    except Exception as e:
-        logging.error(f"Failed to suspend student {studentid}: {e}")
-        return False
 
 def log_response_info(response, ip=None):
     try:
@@ -997,7 +861,7 @@ def home():
         if rejectionmessage != None:
             session.clear()
             return redirect('/')
-        return render_template('signin.html')
+        return render_template('signin.html', campusName = serverConfig["campusInfo"]["name"], campusAddress = serverConfig["campusInfo"]["address"][:25], campusInfo = f"{serverConfig['campusInfo']['phone']} | {serverConfig['campusInfo']['email']} | {serverConfig['campusInfo']['url']}", campusLogo = serverConfig["campusInfo"]["logo"], campusBackground = serverConfig["campusInfo"]["background"])
     
 @app.route('/student')
 def student():
@@ -1074,7 +938,7 @@ def signout():
 
 @app.route('/userSignin')
 def userSignin():
-    return render_template('passwordLogin.html')
+    return render_template('passwordLogin.html', campusName = serverConfig["campusInfo"]["name"], campusAddress = serverConfig["campusInfo"]["address"][:25], campusInfo = f"{serverConfig['campusInfo']['phone']} | {serverConfig['campusInfo']['email']} | {serverConfig['campusInfo']['url']}", campusLogo = serverConfig["campusInfo"]["logo"], campusBackground = serverConfig["campusInfo"]["background"])
     
 @app.route('/mslogin')
 def login():
@@ -1437,9 +1301,26 @@ def updatePass():
             
             return jsonify(retinfo)
         
+        with dbConnect() as connection:
+            with connection.cursor() as dbcursor:
+                dbcursor.execute('SELECT locationid FROM users WHERE userid = %s', (userid,))
+                userlocationresult = dbfetchedConvertDate(dbcursor.fetchall())
+        
         studentid = result[0][1]
+        userlocationid = userlocationresult[0][0]
         floorid = result[0][2]
         destinationid = result[0][3]
+
+        if userlocationid in [floorid, destinationid]:
+            proxyApprove = False
+        else:
+            if ensureLoggedIn(session, 1):
+                proxyApprove = True
+            else:
+                retinfo['status'] = 'error'
+                retinfo['errorinfo'] = 'User location does not match location of pass and user is not authorized to proxy approve passes'
+            
+                return jsonify(retinfo)
 
         suspendInfo = isStudentSuspended(studentid)
 
@@ -1515,13 +1396,14 @@ def updatePass():
             stampposition = 0
             timepositions = ['fleavetime', 'darrivetime', 'dleavetime', 'farrivetime']
             approvepositions = ['flapprover', 'daapprover', 'dlapprover', 'faapprover']
+            proxypositions = ['flpa', 'dapa', 'dlpa', 'fapa']
             
             stampposition = getPassStatus(passid)
                         
             if stampposition != None:
                 with dbConnect() as connection:
                     with connection.cursor() as dbcursor:
-                        dbcursor.execute(f'UPDATE passes SET {timepositions[stampposition]} = "{timestamp}", {approvepositions[stampposition]} = %s WHERE passid = %s', (userid, passid,))
+                        dbcursor.execute(f'UPDATE passes SET {timepositions[stampposition]} = "{timestamp}", {approvepositions[stampposition]} = %s, {proxypositions[stampposition]} = %s WHERE passid = %s', (userid, proxyApprove, passid,))
                         dprint(dbcursor.statement)
                         
             else:
@@ -1635,7 +1517,12 @@ def approvePassByCard():
 
     oid = getOidFromSession(session)
 
-    userid = checkUserInformation("userid", oid)[0]
+    userid_result = checkUserInformation("userid", oid)
+    if userid_result is None:
+        retinfo['status'] = 'error'
+        retinfo['errorinfo'] = 'Not authorized to perform this action'
+        return jsonify(retinfo)
+    userid = userid_result[0]
 
     if authResult == 'kiosk':
         isKiosk = True
@@ -2613,23 +2500,33 @@ def editStudent():
                 
 @app.route('/api/editUser', methods=['POST'])
 def editUser():
-    if request.json.get('settingsEdit') == 'true' or ensureLoggedIn(session, 1):
+    if (request.json.get('settingsEdit') == 'true' and ensureLoggedIn(session, 3)) or ensureLoggedIn(session, 1):
         retinfo = {}
         
         oid = getOidFromSession(session)
         settingsEdit = request.json.get('settingsEdit')
-        setuserid = checkUserInformation("userid", oid)[0]
-        setuserrole = checkUserInformation("role", oid)[0]
+        setuserid_result = checkUserInformation("userid", oid)
+        setuserrole_result = checkUserInformation("role", oid)
+        if setuserid_result is None or setuserrole_result is None:
+            retinfo['status'] = 'error'
+            retinfo['errorinfo'] = 'Not authorized to perform this action'
+            return jsonify(retinfo)
+        setuserid = setuserid_result[0]
+        setuserrole = setuserrole_result[0]
+
+        editUserLocation = None
 
         if settingsEdit == 'true':
             seTrue = True
             
             with dbConnect() as connection:
                 with connection.cursor() as dbcursor:
-                    dbcursor.execute('SELECT role FROM users WHERE userid = %s', (setuserid,))
+                    dbcursor.execute('SELECT role, locationid FROM users WHERE userid = %s', (setuserid,))
                     dbcursorfetch = dbfetchedConvertDate(dbcursor.fetchall())
                     
             userRoleId = dbcursorfetch[0][0]
+            if not ensureLoggedIn(session, 1):
+                editUserLocation = dbcursorfetch[0][1]
             userid = setuserid
         else:
             seTrue = False
@@ -2740,7 +2637,11 @@ def editUser():
         else:
             userPassword = generateSHA256(userPassword)
             
-        userLocationId = getLocationIdFromName(userLocation)
+        if editUserLocation == None:
+            userLocationId = getLocationIdFromName(userLocation)
+        else:
+            userLocationId = editUserLocation
+
         if userLocationId == None:
             retinfo['status'] = 'error'
             retinfo['errorinfo'] = 'Please enter a valid location'
@@ -2924,7 +2825,12 @@ def searchUsers():
             settingsEdit = str(searchFilter['settingsEdit'])
             if settingsEdit == 'true':
                 oid = getOidFromSession(session)
-                userid = checkUserInformation("userid", oid)[0]
+                userid_result = checkUserInformation("userid", oid)
+                if userid_result is None:
+                    retinfo['status'] = 'error'
+                    retinfo['users'] = None
+                    return jsonify(retinfo)
+                userid = userid_result[0]
                 with dbConnect() as connection:
                     with connection.cursor() as dbcursor:
                         dbcursor.execute('SELECT userid, name, email, role, locationid FROM users WHERE userid = %s', (userid,))
@@ -3062,7 +2968,7 @@ def getLocationInfo():
     
 @app.route('/api/updateUserLocation', methods=['POST'])
 def updateUserLocation():
-    if ensureLoggedIn(session, 3):
+    if ensureLoggedIn(session, 1):
         retinfo = {}
         
         oid = getOidFromSession(session)
@@ -3111,7 +3017,7 @@ def getUserInfo():
         
         oid = getOidFromSession(session)
         
-        urin = checkUserInformation("userid, name, email, locationid", oid) 
+        urin = checkUserInformation("userid, name, email, locationid, role", oid) 
         if urin == None:
             retinfo['status'] = 'error'
             retinfo['errorinfo'] = 'Not authorized to perform this action'
@@ -3341,9 +3247,8 @@ def getUserRole():
         retinfo = {}
 
         oid = getOidFromSession(session)
-        userid = checkUserInformation("userid", oid)[0]
-
-        if userid is None:
+        userid_result = checkUserInformation("userid", oid)
+        if userid_result is None:
             retinfo['status'] = 'error'
             retinfo['errorinfo'] = 'Not authorized to perform this action'
             return jsonify(retinfo)
@@ -3464,7 +3369,7 @@ def getPassInfo():
         with dbConnect() as connection:
             with connection.cursor() as dbcursor:
                 dbcursor.execute('''
-                    SELECT studentid, floorid, destinationid, flagged, fleavetime, darrivetime, dleavetime, farrivetime, flapprover, daapprover, dlapprover, faapprover, flka, daka, dlka, faka FROM passes WHERE passid = %s ''', (passid,))
+                    SELECT studentid, floorid, destinationid, flagged, fleavetime, darrivetime, dleavetime, farrivetime, flapprover, daapprover, dlapprover, faapprover, flka, daka, dlka, faka, flpa, dapa, dlpa, fapa FROM passes WHERE passid = %s ''', (passid,))
                 passinfo = dbfetchedOneConvertDate(dbcursor.fetchone())
 
         for i in range(4):
@@ -3473,7 +3378,9 @@ def getPassInfo():
                 if appendApproverName:
                     passinfo[i + 4] += '\n'
                     if passinfo[i + 12]:
-                        passinfo[i + 4] += '🇰 '
+                        passinfo[i + 4] += '🄺 '
+                    if passinfo[i + 16]:
+                        passinfo[i + 4] += '🄿 '
                     passinfo[i + 4] += getUserNameFromId(passinfo[i + 8])
                 
         with dbConnect() as connection:
@@ -3523,7 +3430,7 @@ def managePanel():
     
 @app.route('/passwordReset')
 def passwordReset():
-    return render_template('passwordReset.html')
+    return render_template('passwordReset.html', campusBackground = serverConfig["campusInfo"]["background"])
     
 @app.route('/settingsPanel')
 def settingsPanel():

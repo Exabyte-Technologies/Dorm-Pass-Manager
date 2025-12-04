@@ -549,7 +549,7 @@ async function getLocationId(type) {
     }
 }
 
-async function setLocationSelector(locationJson) {
+async function setLocationSelector(locationJson, role = 3) {
     const optionSlot = document.getElementById("locationSelector");
     var locations = [];
     var locationJson = await locationJson;
@@ -561,6 +561,7 @@ async function setLocationSelector(locationJson) {
         option.text = curlocation;
         optionSlot.appendChild(option);
     });
+    optionSlot.disabled = role != 1
 }
 
 async function updateUserLocation(locationName) {
@@ -778,6 +779,7 @@ async function mainProcess() {
 
     var userinfo = await getUserInfo()
     var username = userinfo['user'][1]
+    var role = userinfo['user'][4]
 
     if (userinfo == 'error') {
         userinfo = null
@@ -793,20 +795,46 @@ async function mainProcess() {
     setLocationFilter('filterLocation', {...destinationIds});
     setLocationFilter('filterFloor', floorIds);
 
-    setLocationSelector(destinationIds)
-    setLocationSelector(floorIds)
+    setLocationSelector(destinationIds, role)
+    setLocationSelector(floorIds, role)
+    // Apply role-based navigation permissions
+    try {
+        if (typeof applyNavPermissions === 'function') applyNavPermissions(role)
+    } catch (e) {
+        dlog('applyNavPermissions not available')
+    }
 
     document.getElementById('passesNavButton').onclick = function(event) {
-        window.location.href = '/passCatalog'
+        event.preventDefault();
+        if (typeof window.navigateWithFade === 'function') {
+            window.navigateWithFade('/passCatalog');
+        } else {
+            window.location.href = '/passCatalog';
+        }
     }
     document.getElementById('studentsNavButton').onclick = function(event) {
-        window.location.href = '/studentCatalog'
+        event.preventDefault();
+        if (typeof window.navigateWithFade === 'function') {
+            window.navigateWithFade('/studentCatalog');
+        } else {
+            window.location.href = '/studentCatalog';
+        }
     }
     document.getElementById('manageNavButton').onclick = function(event) {
-        window.location.href = '/managePanel'
+        event.preventDefault();
+        if (typeof window.navigateWithFade === 'function') {
+            window.navigateWithFade('/managePanel');
+        } else {
+            window.location.href = '/managePanel';
+        }
     }
     document.getElementById('settingsNavButton').onclick = function(event) {
-        window.location.href = '/settingsPanel'
+        event.preventDefault();
+        if (typeof window.navigateWithFade === 'function') {
+            window.navigateWithFade('/settingsPanel');
+        } else {
+            window.location.href = '/settingsPanel';
+        }
     }
 
     const locationSelector = document.getElementById('locationSelector');
