@@ -1839,7 +1839,7 @@ def getStudents():
             pass
         
         try:
-            statusfilter = searchfilters['status']
+            statusfilter = int(searchfilters['status'])
             if userlocationtype == 2:
                 statusfilter -= 2
             nullstatus = ['AND fleavetime IS NULL ', 'AND fleavetime IS NOT NULL AND darrivetime IS NULL ', 'AND darrivetime IS NOT NULL AND dleavetime IS NULL ', 'AND dleavetime IS NOT NULL AND farrivetime IS NULL ']

@@ -304,7 +304,14 @@ async function setStudentIndex(studentsJson) {
         }
 
         document.getElementById(`edit-${curstudent[0]}`).onclick = function(event){
-            window.location = `/managePanel?editStudent=${curstudent[2]}`
+            if (window.role == 1) {
+                window.location = `/managePanel?editStudent=${curstudent[2]}`
+            }
+        }
+
+        if (window.role != 1) {
+            document.getElementById(`edit-${curstudent[0]}`).classList.remove('studentActionButton')
+            document.getElementById(`edit-${curstudent[0]}`).classList.add('studentActionButtonDisabled')
         }
     })
 }
@@ -780,6 +787,7 @@ async function mainProcess() {
     var userinfo = await getUserInfo()
     var username = userinfo['user'][1]
     var role = userinfo['user'][4]
+    window.role = role
 
     if (userinfo == 'error') {
         userinfo = null

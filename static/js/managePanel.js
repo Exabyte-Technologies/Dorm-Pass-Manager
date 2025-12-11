@@ -809,6 +809,22 @@ async function doAddUserLocationDatalistUpdate(locationName) {
     }
 }
 
+async function doEditUserLocationDatalistUpdate(locationName) {
+    const userEditLocationDatalist = document.getElementById('editUserFoundLocations')
+    if (!userEditLocationDatalist) return
+    userEditLocationDatalist.innerHTML = ''
+    var locationList = await getLocationInfo({'name': locationName})
+    if (locationList != [] && locationList != undefined && locationList != null) {
+        for (let i = 0; i < locationList.length; i ++) {
+            const option = document.createElement('option')
+            option.value = locationList[i][1]
+            option.locationId = locationList[i][0]
+            userEditLocationDatalist.appendChild(option)
+            dlog('Added option:', option);
+        }
+    }
+}
+
 function setStudentEditDisable(status) {
     document.getElementById('editStudentName').disabled = status
     document.getElementById('editStudentGrade').disabled = status
@@ -2036,6 +2052,9 @@ async function mainProcess() {
 
     const addUserLocationDatalist = document.getElementById('addUserLocation')
     addUserLocationDatalist.oninput = function(){doAddUserLocationDatalistUpdate(addUserLocationDatalist.value)}
+
+    const editUserLocationInput = document.getElementById('editUserLocation')
+    if (editUserLocationInput) editUserLocationInput.oninput = function(){doEditUserLocationDatalistUpdate(editUserLocationInput.value)}
 
     const editLocationDatalist = document.getElementById('editLocationChoose')
     editLocationDatalist.oninput = function(){doEditLocationDatalistUpdate(editLocationDatalist.value)}

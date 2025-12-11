@@ -230,9 +230,52 @@ async function getPassStatus(studentid) {
     }
 }
 
+async function getUserInfo() {
+    try {
+        const response = await fetch("/api/getUserInfo", {
+            method: 'POST',
+            body: JSON.stringify({}),
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const responseJson = await response.json();
+
+        switch (responseJson.status) {
+            case "error":
+                createAlertPopup(5000, null, 'Error While Getting User Info', responseJson.errorinfo)
+                return 'error'
+                break;
+            case "ok":
+                return responseJson.userinfo
+                break;
+            default:
+                return None
+        }
+        
+    } catch (error) {
+        window.errorLog.push(error)
+        dlog('Error:', error);
+        createAlertPopup(5000, null, 'Error', 'Error while sending data to server')
+        return 0
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const studentid = urlParams.get('studentid');
+
+    var userinfo = await getUserInfo()
+    var role = userinfo['user'][4]
+
+    if (role > 1) {
+        document.getElementById('editStudentButton').style = "display: none;"
+    }
+    if (role > 2) {
+        document.getElementById('createPassButton').style = "display: none;"
+    }
 
     if (studentid) {
         await fetchStudentInfo(studentid);
