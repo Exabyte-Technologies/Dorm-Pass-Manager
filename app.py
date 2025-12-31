@@ -108,7 +108,15 @@ dbuser = serverConfig['database']['dbuser']
 dbpassword = serverConfig['database']['dbpassword']
 dbdatabase = serverConfig['database']['dbdatabase']
 
-socketio = SocketIO(app)
+socketio = SocketIO(
+    app,
+    ping_interval=30,
+    ping_timeout=10,
+    reconnection=True,
+    reconnection_attempts=5,
+    reconnection_delay=1000,
+    reconnection_delay_max=5000
+)
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -887,6 +895,7 @@ def west6():
 @app.route('/kiosk', methods=['GET', 'POST'])
 def kiosk():
     if request.method == 'POST':
+        time.sleep(1)
         pin = request.form['kioskpin']
         userid = KIOSKPin.verifyKIOSKPin(pin)
         if userid != False:
@@ -928,11 +937,20 @@ def signout():
     try:
         deactivateResult = sessionStorage.deactivate(decrypt(str(session.get('sessionid'))), decrypt(str(session.get('passkey'))))
     except:
-        return redirect('/')
+        if session.get('mslogin'):
+            session.clear()
+            return redirect(f'https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri={getSettingsValue("serverURL")}')
+        else:
+            session.clear()
+            return redirect('/')
         
     if deactivateResult:
-        session.clear()
-        return redirect('/')
+        if session.get('mslogin'):
+            session.clear()
+            return redirect(f'https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri={getSettingsValue("serverURL")}')
+        else:
+            session.clear()
+            return redirect('/')
     else:
         return render_template('errorPage.html', errorTitle = 'Error Signing Out', errorText = 'Sever encountered an error while deactivating your session', errorDesc = 'Please try again later', errorLink = '/passCatalog')
 
@@ -969,6 +987,7 @@ def microsoftLoginCallback():
             session['passkey'] = str(encrypt(sessioninfo[1]))
 
             session['login'] = True
+            session['mslogin'] = True
             return redirect('/passCatalog')
         elif stin != None:
             studentInfo = stin
@@ -979,6 +998,7 @@ def microsoftLoginCallback():
             session['passkey'] = str(encrypt(sessioninfo[1]))
 
             session['login'] = True
+            session['mslogin'] = True
             return redirect('/student')
         
         if urin == None:
@@ -1000,6 +1020,7 @@ def microsoftLoginCallback():
                 userName = result[0][1] 
 
                 session['login'] = True
+                session['mslogin'] = True
                 return render_template('firstLanding.html', userName = userName)
                 
             with dbConnect() as connection:
@@ -1018,6 +1039,7 @@ def microsoftLoginCallback():
                 session['passkey'] = str(sessioninfo[1])
 
                 session['login'] = True
+                session['mslogin'] = True
                 return redirect('/student')
             
             else:
@@ -1057,6 +1079,7 @@ def passwordLoginCallback():
             session['sessionid'] = str(encrypt(sessioninfo[0]))
             session['passkey'] = str(encrypt(sessioninfo[1]))
             session['login'] = True
+            session['mslogin'] = False
             return redirect('/passCatalog')
         else:
             return render_template('userNotRegistered.html', email = username)
@@ -1528,6 +1551,8 @@ def approvePassByCard():
         isKiosk = True
     else:
         isKiosk = False
+
+    returnSocketInfo = {}
 
     if isKiosk == True:
         studentTestImageBase64 = request.json.get('image')

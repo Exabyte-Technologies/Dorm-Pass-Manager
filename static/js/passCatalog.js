@@ -14,10 +14,14 @@ If you don't understand what you are doing, please close this window.
 如果您不明白自己在做什么，请关闭此窗口。
 `, 'color: red') 
 
-const kioskSocket = io.connect();
+let kioskSocket;
+let kioskReconnectInterval;
+let isKioskSocketInitialized = false;
 
 async function joinKioskRooms() {
-    socket.emit('join', {});
+    if (kioskSocket && kioskSocket.connected) {
+        kioskSocket.emit('join', {});
+    }
   }
 
 const okBEEP = new Audio('/static/resource/okBEEP.mp3');
@@ -228,7 +232,7 @@ async function generateKioskToken() {
 }
 
 async function openBrowserKioskWindow() {
-    var kioskConfirmResult = await confirmDialog('Launching KIOSK With Escalated Privileges', 'Launching a KIOSK from this page will give the KIOSK escalated privileges which could be exploited if an attacker gains physical access to this computer. INSTEAD, you should use another device and set the other device up using the KIOSK setup guide located in the settings panel. You could continue but this computer should be watched at all time to prevent misuse if you do. Do you want to continue?', 'warning', 'Launch')
+    var kioskConfirmResult = await confirmDialog('Launching KIOSK With Escalated Privileges', 'Launching a KIOSK from this page will give the KIOSK escalated privileges which could be exploited if an attacker gains physical access to this computer. INSTEAD, you should use another device and set the other device up using the KIOSK setup guide located in the settings panel. You could continue but this computer should be watched at all time to prevent misuse if you do. FACE VERIFICATION WILL BE DISABLED! Do you want to continue?', 'warning', 'Launch')
     if (!kioskConfirmResult) {
         return
     }
@@ -650,12 +654,20 @@ async function setStudentIndex(studentsJson) {
         }
         document.getElementById(`approve-${curstudent[0]}-${passid}-${curstudent[5]}-${curstudent[6]}-${curstudent[7]}-${curstudent[8]}`).onclick = async function(event){
             var userLocation = await getUserLocation()
-            var locWarningStr = ''
+            var locWarningHtml = ''
             if (((curstudent[8] == 1) && (userLocation != curstudent[5])) || ((curstudent[8] == 2) && (userLocation != curstudent[6])) || ((curstudent[8] == 3) && (userLocation != curstudent[6])) || ((curstudent[8] == 4) && (userLocation != curstudent[5]))) {
-                locWarningStr = ` | ⚠️ WARNING: ${curstudent[0]} is not supposed to be at your location`
+                locWarningHtml = `<br><br><span class="flash-warning" style="color: #ffa946; font-weight: bold;">⚠️ WARNING: ${curstudent[0]} is not supposed to be at your location</span>`
             }
-            var confirmApprove = await confirmDialog(`Approve ${curstudent[0]} ?`, `${curstudent[5]} ↔️ ${curstudent[6]} | 🕓 ${calculateElapsedTime(curstudent[7])} Min${locWarningStr}`, 'question', 'Approve')
-            if (confirmApprove) {
+            var confirmApprove = await Swal.fire({
+                title: `Approve ${curstudent[0]} ?`,
+                html: `${curstudent[5]} ↔️ ${curstudent[6]} | 🕓 ${calculateElapsedTime(curstudent[7])} Min${locWarningHtml}`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: "#3085d6",
+                cancelButtonColor: "#d33",
+                confirmButtonText: "Approve"
+            })
+            if (confirmApprove.isConfirmed) {
                 var updateResult = await updateStudentPass({'passid': passid,'approve': true})
                 var alertType = ''
                 // --- Fetch student image ---
@@ -1356,35 +1368,62 @@ async function updateStudentStatusChart() {
     window.studentStatusChart.update()
 }
 
-async function kioskSocketActionSetup() {
-    socket.on("connect", () => {
-        console.log("Socket connected successfully");
-    });
-    socket.on("disconnect", () => {
-        console.log("Socket disconnected");
-    });
-    socket.on("error", (error) => {
-        console.error("Socket error:", error);
-    });
+function kioskSocketConnect() {
+    // Clear any existing reconnect interval
+    if (kioskReconnectInterval) {
+        clearInterval(kioskReconnectInterval);
+    }
 
-    socket.on("kioskUpdate", (cmd) => {
-        var now = new Date();
-        var currentTimeString = now.toLocaleTimeString();
-        switch (cmd.status) {
-            case "ok":
-                var studentFloorName = window.floorLocationJson[cmd.studentFloorId][0]
-                createAlertPopup(3000, 'success', 'KIOSK Approve Success', `<b>${cmd.studentName} - ${studentFloorName}</b><br>${currentTimeString}`, '', cmd.studentImage, cmd.studentScanImage);
-                break;
-            case "error":
-                var studentFloorName = window.floorLocationJson[cmd.studentFloorId][0]
-                createAlertPopup(300000, 'error', 'KIOSK Approve Error', `<b>${cmd.studentName} - ${studentFloorName}</b><br>${cmd.errorinfo}<br>${currentTimeString}`, '', cmd.studentImage, cmd.studentScanImage);
-                failBEEP.play();
-                break;
-            default:
-                console.warn("Unknown command received:", cmd);
+    if (!isKioskSocketInitialized) {
+        kioskSocket = io.connect();
+        isKioskSocketInitialized = true;
+
+        kioskSocket.on("connect", () => {
+            console.log("Kiosk Socket connected successfully");
+            joinKioskRooms();
+        });
+
+        kioskSocket.on("disconnect", () => {
+            console.log("Kiosk Socket disconnected");
+        });
+
+        kioskSocket.on("error", (error) => {
+            console.error("Kiosk Socket error:", error);
+        });
+
+        kioskSocket.on("kioskUpdate", (cmd) => {
+            var now = new Date();
+            var currentTimeString = now.toLocaleTimeString();
+            switch (cmd.status) {
+                case "ok":
+                    var studentFloorName = window.floorLocationJson[cmd.studentFloorId][0]
+                    createAlertPopup(3000, 'success', 'KIOSK Approve Success', `<b>${cmd.studentName} - ${studentFloorName}</b><br>${currentTimeString}`, '', cmd.studentImage, cmd.studentScanImage);
+                    break;
+                case "error":
+                    var studentFloorName = window.floorLocationJson[cmd.studentFloorId][0]
+                    createAlertPopup(300000, 'error', 'KIOSK Approve Error', `<b>${cmd.studentName} - ${studentFloorName}</b><br>${cmd.errorinfo}<br>${currentTimeString}`, '', cmd.studentImage, cmd.studentScanImage);
+                    failBEEP.play();
+                    break;
+                default:
+                    console.warn("Unknown command received:", cmd);
+            }
+        });
+
+        startKioskConnectionCheck();
+    } else {
+        // Socket already exists, just try to connect
+        kioskSocket.connect();
+    }
+}
+
+function startKioskConnectionCheck() {
+    // Check connection status every 5 seconds
+    kioskReconnectInterval = setInterval(() => {
+        if (kioskSocket && !kioskSocket.connected) {
+            console.warn("Kiosk Socket connection lost, attempting to reconnect...");
+            kioskSocket.connect();
         }
-    });
-    joinRoom();
+    }, 5000);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1432,8 +1471,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    kioskSocketActionSetup()
-    joinKioskRooms()
+    kioskSocketConnect()
 
     setInterval(updateDisplay, 20000)
 });

@@ -327,6 +327,15 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
           }
+
+        @keyframes flashWarning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .flash-warning {
+            animation: flashWarning 0.5s ease-in-out 3;
+        }
     </style>
 
     <script src="/static/js/panelFade.js"></script>
