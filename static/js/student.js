@@ -36,7 +36,7 @@ function createAlertPopup(closetimeout, type = null, title, body, alertid = '') 
     titleText.textContent = title;
 
     let bodyText = document.createElement('p');
-    bodyText.innerHTML = body;
+    bodyText.textContent = body;
 
     alertElement.appendChild(closeButton);
     alertElement.appendChild(titleText);

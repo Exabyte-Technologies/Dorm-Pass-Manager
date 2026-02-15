@@ -26,7 +26,7 @@ function createAlertPopup(closetimeout, type = null, title, body, alertid = '') 
     titleText.textContent = title;
 
     let bodyText = document.createElement('p');
-    bodyText.innerHTML = body;
+    bodyText.textContent = body;
 
     alertElement.appendChild(closeButton);
     alertElement.appendChild(titleText);
@@ -58,7 +58,6 @@ async function fetchStudentInfo(studentid) {
         }
 
         const studentInfo = responseJson.studentinfo;
-        console.log(studentInfo)
         window.studentName = studentInfo[0];
         document.getElementById('studentName').textContent = studentInfo[0];
         document.getElementById('studentGrade').textContent = studentInfo[1];
@@ -148,6 +147,7 @@ async function getCurrentLocation(studentid) {
             return 'Unknown';
         }
 
+
         const passes = responseJson.students;
         if (Object.keys(passes).length === 0) {
             // No active passes, student is at their dorm floor
@@ -219,9 +219,11 @@ async function getPassStatus(studentid) {
         } else if (dleavetime != null && farrivetime == null) {
             // Student is traveling back to the dorm
             return "Active";
+        } else if (fleavetime == null) {
+            return "Unused Pass"
         } else {
             // Pass is completed
-            return "Inactive";
+            return "No Unused Pass";
         }
     } catch (error) {
         dlog('Error:', error);
@@ -288,8 +290,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('editStudentButton').onclick = () => {
         window.parent.postMessage({ message: 'redirect', redirectUrl: `/managePanel?editStudent=${window.studentName}` }, '*');
     }
-
-    document.getElementById('studentLocation').onclick = () => {
+    
+    document.getElementById('passStatus').onclick = () => {
         window.parent.postMessage({ message: 'redirect', redirectUrl: `/passCatalog?viewPass=${window.passid}` }, '*');
     }
 

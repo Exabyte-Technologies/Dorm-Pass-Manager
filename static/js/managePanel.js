@@ -557,7 +557,7 @@ function createAlertPopup(closetimeout, type = null, title, body, alertid = '') 
     titleText.textContent = title
 
     let bodyText = document.createElement('p')
-    bodyText.innerHTML = body
+    bodyText.textContent = body
 
     alertElement.appendChild(closeButton)
     alertElement.appendChild(titleText)
@@ -1487,12 +1487,28 @@ async function loadBackupList() {
     backupFiles.forEach(file => {
         const fileDiv = document.createElement('div');
         fileDiv.className = 'backup-file';
-        fileDiv.innerHTML = `
-            <span>${file}</span>
-            <button class="download-button" onclick="downloadBackup('${file}')">Download</button>
-            <button class="load-button" onclick="loadBackup('${file}')">Load</button>
-            <button class="delete-button" onclick="deleteBackup('${file}')">Delete</button>
-        `;
+        const fileSpan = document.createElement('span');
+        fileSpan.textContent = file;
+        fileDiv.appendChild(fileSpan);
+
+        const fileDownloadButton = document.createElement('button');
+        fileDownloadButton.className = 'download-button';
+        fileDownloadButton.textContent = 'Download';
+        fileDownloadButton.onclick = () => downloadBackup(file);
+        fileDiv.appendChild(fileDownloadButton);
+
+        const fileLoadButton = document.createElement('button');
+        fileLoadButton.className = 'load-button';
+        fileLoadButton.textContent = 'Load';
+        fileLoadButton.onclick = () => loadBackup(file);
+        fileDiv.appendChild(fileLoadButton);
+
+        const fileDeleteButton = document.createElement('button');
+        fileDeleteButton.className = 'delete-button';
+        fileDeleteButton.textContent = 'Delete';
+        fileDeleteButton.onclick = () => deleteBackup(file);
+        fileDiv.appendChild(fileDeleteButton);
+        
         backupListDiv.appendChild(fileDiv);
     });
 }

@@ -284,12 +284,12 @@ async function setStudentIndex(studentsJson) {
         studentCreatePassButton.classList.add('studentActionButton')
         studentEditButton.classList.add('studentActionButton')
 
-        studentNameDiv.innerHTML = curstudent[0]
+        studentNameDiv.textContent = curstudent[0]
 
-        studentInfoDiv.innerHTML = curstudent[1]
-        studentActionButton.innerHTML = 'Actions'
-        studentCreatePassButton.innerHTML = 'Add Pass'
-        studentEditButton.innerHTML = 'Edit'
+        studentInfoDiv.textContent = curstudent[1]
+        studentActionButton.textContent = 'Actions'
+        studentCreatePassButton.textContent = 'Add Pass'
+        studentEditButton.textContent = 'Edit'
 
         studentActionButton.setAttribute('id', `actions-${curstudent[0]}`)
         studentCreatePassButton.setAttribute('id', `addpass-${curstudent[0]}`)
@@ -472,7 +472,7 @@ function createAlertPopup(closetimeout, type = null, title, body, alertid = '') 
     titleText.textContent = title;
 
     let bodyText = document.createElement('p');
-    bodyText.innerHTML = body;
+    bodyText.textContent = body;
 
     alertElement.appendChild(closeButton);
     alertElement.appendChild(titleText);

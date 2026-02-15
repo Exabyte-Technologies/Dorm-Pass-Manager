@@ -494,7 +494,7 @@ function createAlertPopup(closetimeout, type = null, title, body, alertid = '', 
         }
 
         let bodyText = document.createElement('p')
-        bodyText.innerHTML = body
+        bodyText.textContent = body
 
         alertElement.appendChild(closeButton)
         alertElement.appendChild(titleText)
@@ -635,15 +635,15 @@ async function setStudentIndex(studentsJson) {
         studentFlagButton.classList.add('studentActionButton')
 
         if (flagged == 1) {
-            studentNameDiv.innerHTML = `🔴 ${curstudent[0]}`
+            studentNameDiv.textContent = `🔴 ${curstudent[0]}`
         } else {
-            studentNameDiv.innerHTML = `🟢 ${curstudent[0]}`
+            studentNameDiv.textContent = `🟢 ${curstudent[0]}`
         }
 
-        studentInfoDiv.innerHTML = curstudent[1]
-        studentActionButton.innerHTML = 'Actions'
-        studentApproveButton.innerHTML = 'Approve'
-        studentFlagButton.innerHTML = 'Flag'
+        studentInfoDiv.textContent = curstudent[1]
+        studentActionButton.textContent = 'Actions'
+        studentApproveButton.textContent = 'Approve'
+        studentFlagButton.textContent = 'Flag'
 
         studentActionButton.setAttribute('id', `actions-${curstudent[0]}-${passid}`)
         studentApproveButton.setAttribute('id', `approve-${curstudent[0]}-${passid}-${curstudent[5]}-${curstudent[6]}-${curstudent[7]}-${curstudent[8]}`)

@@ -26,7 +26,7 @@ function createAlertPopup(closetimeout, type = null, title, body, alertid = '') 
     titleText.textContent = title;
 
     let bodyText = document.createElement('p');
-    bodyText.innerHTML = body;
+    bodyText.textContent = body;
 
     alertElement.appendChild(closeButton);
     alertElement.appendChild(titleText);
@@ -70,10 +70,10 @@ async function fetchPassInfo(passid) {
         document.getElementById('studentFloor').textContent = floorInfo[0];
         document.getElementById('destination').textContent = destinationInfo[0];
         document.getElementById('flagged').innerHTML = passInfo[3] ? "<b style='color:red'>Yes</b>" : "No";
-        document.getElementById('fleavetime').innerHTML = passInfo[4] || "N/A";
-        document.getElementById('darrivetime').innerHTML = passInfo[5] || "N/A";
-        document.getElementById('dleavetime').innerHTML = passInfo[6] || "N/A";
-        document.getElementById('farrivetime').innerHTML = passInfo[7] || "N/A";
+        document.getElementById('fleavetime').textContent = passInfo[4] || "N/A";
+        document.getElementById('darrivetime').textContent = passInfo[5] || "N/A";
+        document.getElementById('dleavetime').textContent = passInfo[6] || "N/A";
+        document.getElementById('farrivetime').textContent = passInfo[7] || "N/A";
         document.getElementById('studentImage').src = studentInfo[3];
 
         document.getElementById('studentName').onclick = function () {document.getElementById('studentImage').src = studentInfo[3];};
