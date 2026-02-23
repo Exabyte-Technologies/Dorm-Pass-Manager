@@ -213,6 +213,7 @@
         }
     </style>
     <script src="/static/js/student.js"></script>
+    <script disable-devtool-auto src='https://cdn.jsdelivr.net/npm/disable-devtool'></script>
 </head>
 <body class="prevent-select auth-page">
     <div class="container">
@@ -248,32 +249,5 @@
         </div>
     </div>
 </div>
-<script>
-    window.addEventListener('devtoolschange', event => {
-        if (event.detail.isOpen) {
-            document.body.innerHTML = 'Please close developer console and reload the page'
-        }
-    });
-    window.addEventListener('onresize', event => {
-        if (event.detail.isOpen) {
-            document.body.innerHTML = 'Please close developer console and reload the page'
-        }
-    });
-    window.addEventListener('onmousemove', event => {
-        if (event.detail.isOpen) {
-            document.body.innerHTML = 'Please close developer console and reload the page'
-        }
-    });
-    window.addEventListener('onfocus', event => {
-        if (event.detail.isOpen) {
-            document.body.innerHTML = 'Please close developer console and reload the page'
-        }
-    });
-    window.addEventListener('onblur', event => {
-        if (event.detail.isOpen) {
-            document.body.innerHTML = 'Please close developer console and reload the page'
-        }
-    });
-</script>
 </body>
 </html>
